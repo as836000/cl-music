@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Container, Row, Col, Form, Button, Card, Spinner, Dropdown } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, Card, Spinner, Dropdown, Modal, ListGroup, ListGroupItem } from 'react-bootstrap';
 import axios from 'axios';
 import ReactPlayer from 'react-player';
-import { FaPlay, FaPause, FaDownload, FaMusic, FaChevronDown, FaChevronUp, FaGithub, FaStepForward, FaStepBackward } from 'react-icons/fa';
+import { FaPlay, FaPause, FaDownload, FaMusic, FaChevronDown, FaChevronUp, FaGithub, FaStepForward, FaStepBackward, FaList, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 
@@ -53,9 +53,10 @@ const MusicSearch = () => {
   const [lyricExpanded, setLyricExpanded] = useState(false);
   const lyricsContainerRef = useRef(null);
 
-  // 👇 【新增】播放列表状态
+  // 👇 【修改】播放列表状态
   const [playlist, setPlaylist] = useState([]);
   const [playlistIndex, setPlaylistIndex] = useState(0);
+  const [showPlaylist, setShowPlaylist] = useState(false); // 新增：控制列表弹窗显示
 
 
   const sources = [
@@ -99,7 +100,6 @@ const MusicSearch = () => {
           pages: 1
         }
       });
-      // setResults(response.data || []);
       // 获取结果后处理封面
       const resultsWithCover = await Promise.all(
         response.data.map(async track => ({
@@ -123,7 +123,6 @@ const MusicSearch = () => {
   const fetchCover = async (source, picId, size = 300) => {
     const cacheKey = `${source}-${picId}-${size}`;
 
-    // 检查缓存
     if (coverCache[cacheKey]) return coverCache[cacheKey];
 
     try {
@@ -137,13 +136,7 @@ const MusicSearch = () => {
       });
 
       const url = response.data.url.replace(/\\/g, '');
-
-      // 更新缓存
-      setCoverCache(prev => ({
-        ...prev,
-        [cacheKey]: url
-      }));
-
+      setCoverCache(prev => ({ ...prev, [cacheKey]: url }));
       return url;
     } catch (error) {
       console.error('封面获取失败:', error);
@@ -152,6 +145,7 @@ const MusicSearch = () => {
   };
 
   const handlePlay = async (track) => {
+    // 如果点击的是当前正在播放的歌
     if (currentTrack?.id === track.id) {
       setIsPlaying(!isPlaying);
       return;
@@ -166,8 +160,6 @@ const MusicSearch = () => {
           params: { types: 'lyric', source: track.source, id: track.lyric_id }
         })
       ]);
-      console.log(urlResponse.data.size);
-
 
       const rawLyric = lyricResponse.data.lyric || '';
       const tLyric = lyricResponse.data.tlyric || '';
@@ -193,15 +185,12 @@ const MusicSearch = () => {
       const url = response.data?.url?.replace(/\\/g, '');
       if (!url) throw new Error('无效的音频链接');
 
-      // 确保状态更新顺序
       setCurrentTrack(track);
       setPlayerUrl(url);
       setIsPlaying(true);
 
     } catch (error) {
       console.error('Play error:', error);
-      setIsPlaying(false);
-      setPlayerUrl('');
       toast.warning('当前音频无效不可用', {
         icon: '⚠️',
         className: 'custom-toast warning-toast'
@@ -211,7 +200,6 @@ const MusicSearch = () => {
 
   const useThrottle = (callback, delay) => {
     const lastCall = useRef(0);
-
     return useCallback((...args) => {
       const now = new Date().getTime();
       if (now - lastCall.current >= delay) {
@@ -236,7 +224,7 @@ const MusicSearch = () => {
     if (newIndex !== currentLyricIndex) {
       setCurrentLyricIndex(newIndex);
     }
-  }, 500); // 节流500m
+  }, 500);
 
   const handleDownload = async (track) => {
     try {
@@ -252,7 +240,6 @@ const MusicSearch = () => {
       const downloadUrl = response.data.url.replace(/\\/g, '');
       const link = document.createElement('a');
       link.href = downloadUrl;
-      // link.download = `${track.name} - ${track.artist}.mp3`; //下载为mp3格式
       const extension = getFileExtension(downloadUrl);
       link.download = `${track.name} - ${track.artist}.${extension}`;
       document.body.appendChild(link);
@@ -260,47 +247,31 @@ const MusicSearch = () => {
       document.body.removeChild(link);
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('下载失败，请稍后重试', {
-        icon: '❌',
-        className: 'custom-toast error-toast'
-      });
+      toast.error('下载失败，请稍后重试');
     }
   };
 
-  // 处理文件名后缀
   const getFileExtension = (url) => {
     try {
-      // 处理可能包含反斜杠的URL
       const cleanUrl = url.replace(/\\/g, '');
-      const fileName = new URL(cleanUrl).pathname
-        .split('/')
-        .pop()
-        .split(/[#?]/)[0]; // 移除可能的哈希和查询参数
-
-      // 使用正则表达式提取后缀
+      const fileName = new URL(cleanUrl).pathname.split('/').pop().split(/[#?]/)[0];
       const extensionMatch = fileName.match(/\.([a-z0-9]+)$/i);
       return extensionMatch ? extensionMatch[1] : 'audio';
     } catch {
-      return 'audio'; // 默认后缀
+      return 'audio';
     }
   };
 
-  // 👇 👇 👇 【新增】核心播放列表逻辑
+  // 👇 👇 👇 【更新】播放列表逻辑
   const addToPlaylist = (track) => {
     setPlaylist([...playlist, track]);
-    toast.success(`已添加: ${track.name}`, {
-      icon: '✅',
-      autoClose: 2000
-    });
+    toast.success(`已添加: ${track.name}`, { autoClose: 2000 });
   };
 
   const playNext = () => {
     if (playlist.length === 0) return;
-
     let nextIndex = playlistIndex + 1;
-    if (nextIndex >= playlist.length) {
-      nextIndex = 0;
-    }
+    if (nextIndex >= playlist.length) nextIndex = 0;
 
     setPlaylistIndex(nextIndex);
     handlePlay(playlist[nextIndex]);
@@ -308,27 +279,41 @@ const MusicSearch = () => {
 
   const playPrev = () => {
     if (playlist.length === 0) return;
-
     let prevIndex = playlistIndex - 1;
-    if (prevIndex < 0) {
-      prevIndex = playlist.length - 1;
-    }
+    if (prevIndex < 0) prevIndex = playlist.length - 1;
 
     setPlaylistIndex(prevIndex);
     handlePlay(playlist[prevIndex]);
   };
-  // 👆 👆 👇 新增逻辑结束
 
-  // 添加滚动效果
+  const playFromPlaylist = (index) => {
+    setPlaylistIndex(index);
+    handlePlay(playlist[index]);
+    setShowPlaylist(false); // 点击后关闭弹窗
+  };
+
+  const removeFromPlaylist = (e, index) => {
+    e.stopPropagation(); // 防止触发播放
+    const newPlaylist = playlist.filter((_, i) => i !== index);
+    setPlaylist(newPlaylist);
+
+    if (index === playlistIndex) {
+      // 如果删除的是当前正在播放的，停止播放
+      setIsPlaying(false);
+      setCurrentTrack(null);
+      setPlayerUrl('');
+    } else if (index < playlistIndex) {
+      // 如果删除的是当前播放歌曲前面的，当前索引需要减1
+      setPlaylistIndex(playlistIndex - 1);
+    }
+  };
+  // 👆 👆 👇 逻辑结束
+
   useEffect(() => {
     if (lyricExpanded && currentLyricIndex >= 0 && lyricsContainerRef.current) {
       const activeLines = lyricsContainerRef.current.getElementsByClassName('active');
       if (activeLines.length > 0) {
-        activeLines[0].scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: 'nearest'
-        });
+        activeLines[0].scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       }
     }
   }, [currentLyricIndex, lyricExpanded]);
@@ -346,7 +331,6 @@ const MusicSearch = () => {
 
       <Form onSubmit={handleSearch} className="mb-4">
         <Row className="g-2">
-
           <Col md={5}>
             <Form.Control
               type="search"
@@ -355,46 +339,26 @@ const MusicSearch = () => {
               onChange={(e) => setQuery(e.target.value)}
             />
           </Col>
-
           <Col md={3}>
-            <Form.Select
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-            >
-              {sources.map(src => (
-                <option key={src} value={src}>{src.toUpperCase()}</option>
-              ))}
+            <Form.Select value={source} onChange={(e) => setSource(e.target.value)}>
+              {sources.map(src => (<option key={src} value={src}>{src.toUpperCase()}</option>))}
             </Form.Select>
           </Col>
-
           <Col md={2}>
             <Dropdown>
-              <Dropdown.Toggle variant="outline-secondary">
-                音质: {quality}k
-              </Dropdown.Toggle>
+              <Dropdown.Toggle variant="outline-secondary">音质: {quality}k</Dropdown.Toggle>
               <Dropdown.Menu>
-                {qualities.map(q => (
-                  <Dropdown.Item key={q} onClick={() => setQuality(q)}>
-                    {q}k
-                  </Dropdown.Item>
-                ))}
+                {qualities.map(q => (<Dropdown.Item key={q} onClick={() => setQuality(q)}>{q}k</Dropdown.Item>))}
               </Dropdown.Menu>
             </Dropdown>
           </Col>
-
           <Col md={2}>
-            <Button variant="primary" type="submit" className="w-100">
-              搜索
-            </Button>
+            <Button variant="primary" type="submit" className="w-100">搜索</Button>
           </Col>
         </Row>
       </Form>
 
-      {loading && (
-        <div className="text-center my-4">
-          <Spinner animation="border" />
-        </div>
-      )}
+      {loading && (<div className="text-center my-4"><Spinner animation="border" /></div>)}
 
       <Row className="g-4">
         {results.map((track) => (
@@ -404,17 +368,10 @@ const MusicSearch = () => {
                 <div className="d-flex align-items-center">
                   <img
                     src={track.picUrl || 'default_cover.jpg'}
-                    alt="专辑封面"
+                    alt="封面"
                     className="me-3 rounded"
-                    style={{
-                      width: '60px',
-                      height: '60px',
-                      objectFit: 'cover',
-                      backgroundColor: '#f5f5f5'
-                    }}
-                    onError={(e) => {
-                      e.target.src = 'default_cover.png';
-                    }}
+                    style={{ width: '60px', height: '60px', objectFit: 'cover', backgroundColor: '#f5f5f5' }}
+                    onError={(e) => { e.target.src = 'default_cover.png'; }}
                   />
                   <div>
                     <h6 className="mb-1">{track.name}</h6>
@@ -424,38 +381,20 @@ const MusicSearch = () => {
 
                 <div className="mt-2 d-flex justify-content-end">
                   <Button
-                    variant="outline-primary"
-                    size="sm"
-                    style={{ marginRight: '5px' }}
+                    variant="outline-primary" size="sm" style={{ marginRight: '5px' }}
                     onClick={() => handlePlay(track)}
-                    disabled={loading || (currentTrack?.id === track.id && !playerUrl)}
                   >
-                    {loading && currentTrack?.id === track.id ? (
-                      <Spinner animation="border" size="sm" />
-                    ) : currentTrack?.id === track.id ? (
-                      isPlaying ? <FaPause /> : <FaPlay />
-                    ) : (
-                      <FaPlay />
-                    )}
+                    {isPlaying && currentTrack?.id === track.id ? <FaPause /> : <FaPlay />}
                   </Button>
 
-                  {/* 👇 【新增】添加到列表按钮 */}
                   <Button
-                    variant="outline-secondary"
-                    size="sm"
-                    style={{ marginRight: '5px' }}
-                    onClick={() => addToPlaylist(track)}
-                    title="添加到播放列表"
+                    variant="outline-secondary" size="sm" style={{ marginRight: '5px' }}
+                    onClick={() => addToPlaylist(track)} title="添加到列表"
                   >
                     +
                   </Button>
-                  {/* 👆 新增结束 */}
 
-                  <Button
-                    variant="outline-success"
-                    size="sm"
-                    onClick={() => handleDownload(track)}
-                  >
+                  <Button variant="outline-success" size="sm" onClick={() => handleDownload(track)}>
                     <FaDownload />
                   </Button>
                 </div>
@@ -465,12 +404,9 @@ const MusicSearch = () => {
         ))}
       </Row>
 
+      {/* 底部播放器 */}
       <div className="fixed-bottom bg-light p-3 border-top"
-        style={{
-          height: lyricExpanded ? '300px' : 'auto',
-          boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
-          zIndex: 1000
-        }}
+        style={{ height: lyricExpanded ? '300px' : 'auto', boxShadow: '0 -2px 10px rgba(0,0,0,0.1)', zIndex: 1000 }}
       >
         <Row className="align-items-center">
           <Col md={3}>
@@ -480,8 +416,7 @@ const MusicSearch = () => {
                   <img
                     src={coverCache[`${currentTrack.source}-${currentTrack.pic_id}-300`] || 'default_cover.png'}
                     alt="当前播放"
-                    style={{ width: '50px', height: '50px' }}
-                    className="me-2 rounded"
+                    style={{ width: '50px', height: '50px' }} className="me-2 rounded"
                   />
                   <div>
                     <h6 className="mb-0">{currentTrack.name}</h6>
@@ -489,110 +424,54 @@ const MusicSearch = () => {
                   </div>
                 </div>
               )}
-              <Button
-                variant="link"
-                onClick={() => setLyricExpanded(!lyricExpanded)}
-                className="ms-2"
-                title={lyricExpanded ? '收起歌词' : '展开歌词'}
-              >{lyricExpanded ? <FaChevronDown /> : <FaChevronUp />}
+              <Button variant="link" onClick={() => setLyricExpanded(!lyricExpanded)} className="ms-2" title="歌词">
+                {lyricExpanded ? <FaChevronDown /> : <FaChevronUp />}
               </Button>
             </div>
           </Col>
 
           <Col md={6}>
-            <div
-              className={`lyric-container ${lyricExpanded ? 'expanded' : 'collapsed'}`}
-              style={{
-                maxHeight: lyricExpanded ? '400px' : '60px',
-                transition: 'max-height 0.3s ease'
-              }}
-            >
+            <div className={`lyric-container ${lyricExpanded ? 'expanded' : 'collapsed'}`}
+              style={{ maxHeight: lyricExpanded ? '400px' : '60px', transition: 'max-height 0.3s ease' }}>
               <div className="lyric-wrapper">
-
                 {lyricData.parsedLyric[currentLyricIndex] && (
                   <div className="current-lyric">
                     {lyricData.parsedLyric[currentLyricIndex].text}
                     {lyricData.tLyric && (
-                      <div className="translated-lyric">
-                        {parseLyric(lyricData.tLyric)[currentLyricIndex]?.text}
-                      </div>
+                      <div className="translated-lyric">{parseLyric(lyricData.tLyric)[currentLyricIndex]?.text}</div>
                     )}
-
                   </div>
                 )}
-
                 {lyricExpanded && (
-                  <div
-                    className="full-lyrics"
-                    ref={lyricsContainerRef}
-                    onScroll={(e) => {
-                      // 记录用户滚动行为
-                      sessionStorage.setItem('userScrolled', true);
-                    }}
-                  >
+                  <div className="full-lyrics" ref={lyricsContainerRef}>
                     {lyricData.parsedLyric.map((line, index) => (
-                      <div
-                        key={index}
-                        className={`lyric-line ${index === currentLyricIndex ? 'active' : ''}`}
-                        data-time={line.time}
-                      >
+                      <div key={index} className={`lyric-line ${index === currentLyricIndex ? 'active' : ''}`}>
                         <div>{line.text}</div>
-                        {lyricData.tLyric && (
-                          <div className="translated-lyric">
-                            {parseLyric(lyricData.tLyric)[index]?.text}
-                          </div>
-                        )}
+                        {lyricData.tLyric && (<div className="translated-lyric">{parseLyric(lyricData.tLyric)[index]?.text}</div>)}
                       </div>
                     ))}
-                    {lyricData.parsedLyric.length === 0 && (
-                      <div className="text-center text-muted py-3">暂无歌词</div>
-                    )}
+                    {lyricData.parsedLyric.length === 0 && (<div className="text-center text-muted py-3">暂无歌词</div>)}
                   </div>
                 )}
-                {lyricData.parsedLyric.length === 0 && (
-                  <div className="current-lyric">暂无歌词</div>
-                )}
-
-
+                {lyricData.parsedLyric.length === 0 && <div className="current-lyric">暂无歌词</div>}
               </div>
             </div>
             <ReactPlayer
-              ref={playerRef}
-              onProgress={handleProgress}
-              url={playerUrl}
-              playing={isPlaying}
-              onReady={() => console.log('播放器就绪')}
-              onError={(e) => {
-                console.error('播放错误:', e);
-                setIsPlaying(false);
-              }}
-              onEnded={() => {
-                // setIsPlaying(false); // ❌ 注释掉原来的停止逻辑
-                playNext(); // 👇 【修改】改为自动播放下一首
-              }}
-              config={{ file: { forceAudio: true } }}
-              height={0}
-              style={{ display: playerUrl ? 'block' : 'none' }} // 隐藏未初始化的播放器
+              ref={playerRef} onProgress={handleProgress} url={playerUrl} playing={isPlaying}
+              onReady={() => console.log('ready')}
+              onError={() => { setIsPlaying(false); }}
+              onEnded={playNext} // 自动播放下一首
+              config={{ file: { forceAudio: true } }} height={0}
+              style={{ display: playerUrl ? 'block' : 'none' }}
             />
           </Col>
 
           <Col md={3} className="text-end d-flex align-items-center justify-content-end gap-2">
-            {/* 👇 【新增】 上一首 */}
-            <Button
-                variant="link"
-                onClick={playPrev}
-                disabled={playlist.length === 0}
-                title="上一首"
-            >
-                <FaStepBackward size={20} className={playlist.length > 0 ? "text-dark" : "text-muted"} />
+            <Button variant="link" onClick={playPrev} disabled={playlist.length === 0} title="上一首">
+              <FaStepBackward size={20} className={playlist.length > 0 ? "text-dark" : "text-muted"} />
             </Button>
-            
-            {/* 原有播放/暂停 */}
-            <Button
-              variant="link"
-              onClick={() => setIsPlaying(!isPlaying)}
-              disabled={!currentTrack || !playerUrl}
-            >
+
+            <Button variant="link" onClick={() => setIsPlaying(!isPlaying)} disabled={!currentTrack || !playerUrl}>
               {!currentTrack ? (
                 <FaMusic size={28} className="text-muted" />
               ) : isPlaying ? (
@@ -602,18 +481,64 @@ const MusicSearch = () => {
               )}
             </Button>
 
-            {/* 👇 【新增】 下一首 */}
-            <Button
-                variant="link"
-                onClick={playNext}
-                disabled={playlist.length === 0}
-                title="下一首"
-            >
-                <FaStepForward size={20} className={playlist.length > 0 ? "text-dark" : "text-muted"} />
+            <Button variant="link" onClick={playNext} disabled={playlist.length === 0} title="下一首">
+              <FaStepForward size={20} className={playlist.length > 0 ? "text-dark" : "text-muted"} />
+            </Button>
+
+            {/* 👇 【新增】播放列表按钮 */}
+            <Button variant="primary" size="sm" onClick={() => setShowPlaylist(true)} title={`播放列表 (${playlist.length})`}>
+               <FaList /> {playlist.length}
             </Button>
           </Col>
         </Row>
       </div>
+
+      {/* 👇 【新增】播放列表弹窗 */}
+      <Modal show={showPlaylist} onHide={() => setShowPlaylist(false)} centered scrollable>
+        <Modal.Header closeButton>
+          <Modal.Title>播放列表 <span className="badge bg-secondary">{playlist.length}</span></Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ padding: '0' }}>
+          {playlist.length === 0 ? (
+            <div className="text-center text-muted py-4">列表为空，快去添加歌曲吧！</div>
+          ) : (
+            <ListGroup variant="flush">
+              {playlist.map((track, index) => (
+                <ListGroupItem
+                  key={index}
+                  active={currentTrack?.id === track.id} // 高亮当前播放
+                  action
+                  onClick={() => playFromPlaylist(index)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    padding: '10px 20px'
+                  }}
+                >
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <div style={{ fontWeight: currentTrack?.id === track.id ? 'bold' : 'normal' }}>
+                      {index + 1}. {track.name}
+                    </div>
+                    <small className="text-muted">{track.artist}</small>
+                  </div>
+                  <Button
+                    variant="link"
+                    className="text-danger"
+                    style={{ padding: '0 10px' }}
+                    onClick={(e) => removeFromPlaylist(e, index)}
+                    title="移除"
+                  >
+                    <FaTimes />
+                  </Button>
+                </ListGroupItem>
+              ))}
+            </ListGroup>
+          )}
+        </Modal.Body>
+      </Modal>
+
     </Container>
   );
 };
