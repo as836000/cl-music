@@ -5,6 +5,8 @@ import ReactPlayer from 'react-player';
 import { FaPlay, FaPause, FaDownload, FaMusic, FaChevronDown, FaChevronUp, FaGithub, FaStepForward, FaStepBackward, FaList, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
+// ⬇️【版本检测】如果你看到的标题不是 "V3"，说明浏览器还显示着旧代码！
+const APP_VERSION = "V3 - 已刷新";
 
 const API_BASE = process.env.REACT_APP_API_BASE || '/api';
 
@@ -53,22 +55,28 @@ const MusicSearch = () => {
   const [lyricExpanded, setLyricExpanded] = useState(false);
   const lyricsContainerRef = useRef(null);
 
-  // 👇 【修改1】使用 localStorage 初始化播放列表，确保刷新不丢失
+  // 👑 核心修改：从 LoadStorage 读取，防止刷新丢失
   const [playlist, setPlaylist] = useState(() => {
     try {
-      const saved = localStorage.getItem('my_music_playlist');
+      const saved = localStorage.getItem('cl_music_playlist_v3');
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
+      console.error("读取列表失败", e);
       return [];
     }
   });
   
   const [playlistIndex, setPlaylistIndex] = useState(0);
-  const [showPlaylist, setShowPlaylist] = useState(false); // 控制列表弹窗显示
+  const [showPlaylist, setShowPlaylist] = useState(false); 
 
-  // 👇 【修改1】添加新的 useEffect，每当列表变化时自动保存到浏览器
+  // 1. 打印日志，证明代码运行了
   useEffect(() => {
-    localStorage.setItem('my_music_playlist', JSON.stringify(playlist));
+    console.log(`🎵 音乐播放器 ${APP_VERSION} 已加载`);
+  }, []);
+
+  // 2. 自动保存列表
+  useEffect(() => {
+    localStorage.setItem('cl_music_playlist_v3', JSON.stringify(playlist));
   }, [playlist]);
 
 
@@ -113,7 +121,6 @@ const MusicSearch = () => {
           pages: 1
         }
       });
-      // 获取结果后处理封面
       const resultsWithCover = await Promise.all(
         response.data.map(async track => ({
           ...track,
@@ -124,10 +131,7 @@ const MusicSearch = () => {
       setResults(resultsWithCover);
     } catch (error) {
       console.error('Search error:', error);
-      toast.error('搜索失败，请稍后重试', {
-        icon: '❌',
-        className: 'custom-toast error-toast'
-      });
+      toast.error('搜索失败，请稍后重试');
     }
     setLoading(false);
   };
@@ -135,19 +139,12 @@ const MusicSearch = () => {
 
   const fetchCover = async (source, picId, size = 300) => {
     const cacheKey = `${source}-${picId}-${size}`;
-
     if (coverCache[cacheKey]) return coverCache[cacheKey];
 
     try {
       const response = await axios.get(`${API_BASE}`, {
-        params: {
-          types: 'pic',
-          source: source,
-          id: picId,
-          size: size
-        }
+        params: { types: 'pic', source: source, id: picId, size: size }
       });
-
       const url = response.data.url.replace(/\\/g, '');
       setCoverCache(prev => ({ ...prev, [cacheKey]: url }));
       return url;
@@ -164,37 +161,18 @@ const MusicSearch = () => {
     }
 
     try {
-      const [urlResponse, lyricResponse] = await Promise.all([
-        axios.get(API_BASE, {
-          params: { types: 'url', source: track.source, id: track.id, br: quality }
-        }),
-        axios.get(API_BASE, {
-          params: { types: 'lyric', source: track.source, id: track.lyric_id }
-        })
+      const rawData = await Promise.all([
+        axios.get(API_BASE, { params: { types: 'url', source: track.source, id: track.id, br: quality } }),
+        axios.get(API_BASE, { params: { types: 'lyric', source: track.source, id: track.lyric_id } })
       ]);
 
-      const rawLyric = lyricResponse.data.lyric || '';
-      const tLyric = lyricResponse.data.tlyric || '';
-
-      setLyricData({
-        rawLyric,
-        tLyric,
-        parsedLyric: parseLyric(rawLyric)
-      });
-
+      const rawLyric = rawData[1].data.lyric || '';
+      const tLyric = rawData[1].data.tlyric || '';
+      setLyricData({ rawLyric, tLyric, parsedLyric: parseLyric(rawLyric) });
       setPlayerUrl('');
       setIsPlaying(false);
 
-      const response = await axios.get(`${API_BASE}`, {
-        params: {
-          types: 'url',
-          source: track.source,
-          id: track.id,
-          br: quality
-        }
-      });
-
-      const url = response.data?.url?.replace(/\\/g, '');
+      const url = rawData[0].data?.url?.replace(/\\/g, '');
       if (!url) throw new Error('无效的音频链接');
 
       setCurrentTrack(track);
@@ -203,10 +181,7 @@ const MusicSearch = () => {
 
     } catch (error) {
       console.error('Play error:', error);
-      toast.warning('当前音频无效不可用', {
-        icon: '⚠️',
-        className: 'custom-toast warning-toast'
-      });
+      toast.warning('当前音频无效不可用');
     }
   };
 
@@ -224,7 +199,6 @@ const MusicSearch = () => {
   const handleProgress = useThrottle((state) => {
     const currentTime = state.playedSeconds;
     const lyrics = lyricData.parsedLyric;
-
     let newIndex = -1;
     for (let i = lyrics.length - 1; i >= 0; i--) {
       if (currentTime >= lyrics[i].time) {
@@ -232,23 +206,12 @@ const MusicSearch = () => {
         break;
       }
     }
-
-    if (newIndex !== currentLyricIndex) {
-      setCurrentLyricIndex(newIndex);
-    }
+    if (newIndex !== currentLyricIndex) setCurrentLyricIndex(newIndex);
   }, 500);
 
   const handleDownload = async (track) => {
     try {
-      const response = await axios.get(`${API_BASE}`, {
-        params: {
-          types: 'url',
-          source: track.source,
-          id: track.id,
-          br: quality
-        }
-      });
-
+      const response = await axios.get(`${API_BASE}`, { params: { types: 'url', source: track.source, id: track.id, br: quality } });
       const downloadUrl = response.data.url.replace(/\\/g, '');
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -269,17 +232,13 @@ const MusicSearch = () => {
       const fileName = new URL(cleanUrl).pathname.split('/').pop().split(/[#?]/)[0];
       const extensionMatch = fileName.match(/\.([a-z0-9]+)$/i);
       return extensionMatch ? extensionMatch[1] : 'audio';
-    } catch {
-      return 'audio';
-    }
+    } catch { return 'audio'; }
   };
 
-  // 播放列表操作
   const addToPlaylist = (track) => {
-    // 防止重复添加
     const exists = playlist.some(t => t.id === track.id && t.source === track.source);
     if(exists) {
-      toast.info('这首歌已经在列表里了');
+      toast.warn('歌曲已在列表中');
       return;
     }
     setPlaylist([...playlist, track]);
@@ -290,7 +249,6 @@ const MusicSearch = () => {
     if (playlist.length === 0) return;
     let nextIndex = playlistIndex + 1;
     if (nextIndex >= playlist.length) nextIndex = 0;
-
     setPlaylistIndex(nextIndex);
     handlePlay(playlist[nextIndex]);
   };
@@ -299,7 +257,6 @@ const MusicSearch = () => {
     if (playlist.length === 0) return;
     let prevIndex = playlistIndex - 1;
     if (prevIndex < 0) prevIndex = playlist.length - 1;
-
     setPlaylistIndex(prevIndex);
     handlePlay(playlist[prevIndex]);
   };
@@ -307,7 +264,7 @@ const MusicSearch = () => {
   const playFromPlaylist = (index) => {
     setPlaylistIndex(index);
     handlePlay(playlist[index]);
-    setShowPlaylist(false); // 选歌后关闭窗口
+    setShowPlaylist(false); 
   };
 
   const removeFromPlaylist = (e, index) => {
@@ -336,23 +293,17 @@ const MusicSearch = () => {
 
   return (
     <Container className="my-4"
-      style={{
-        paddingBottom: lyricExpanded ? '320px' : '120px',
-        transition: 'padding 0.3s ease'
-      }}
+      style={{ paddingBottom: lyricExpanded ? '320px' : '120px', transition: 'padding 0.3s ease' }}
     >
       <Github />
-      <h1 className="text-center mb-4">全平台音乐搜索</h1>
+      
+      {/* 👇 看这里：标题是否变成了 V3？ */}
+      <h1 className="text-center mb-4">全平台音乐搜索 {APP_VERSION}</h1>
 
       <Form onSubmit={handleSearch} className="mb-4">
         <Row className="g-2">
           <Col md={5}>
-            <Form.Control
-              type="search"
-              placeholder="输入歌曲名、歌手或专辑"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+            <Form.Control type="search" placeholder="输入歌曲名、歌手或专辑" value={query} onChange={(e) => setQuery(e.target.value)} />
           </Col>
           <Col md={3}>
             <Form.Select value={source} onChange={(e) => setSource(e.target.value)}>
@@ -395,10 +346,7 @@ const MusicSearch = () => {
                 </div>
 
                 <div className="mt-2 d-flex justify-content-end">
-                  <Button
-                    variant="outline-primary" size="sm" style={{ marginRight: '5px' }}
-                    onClick={() => handlePlay(track)}
-                  >
+                  <Button variant="outline-primary" size="sm" style={{ marginRight: '5px' }} onClick={() => handlePlay(track)}>
                     {isPlaying && currentTrack?.id === track.id ? <FaPause /> : <FaPlay />}
                   </Button>
 
@@ -419,10 +367,8 @@ const MusicSearch = () => {
         ))}
       </Row>
 
-      {/* 底部播放器 */}
-      <div className="fixed-bottom bg-light p-3 border-top shadow"
-        style={{ height: lyricExpanded ? '300px' : 'auto', zIndex: 1000 }}
-      >
+      {/* 底部播放器区域 */}
+      <div className="fixed-bottom bg-light p-3 border-top shadow" style={{ height: lyricExpanded ? '300px' : 'auto', zIndex: 1000 }}>
         <Row className="align-items-center">
           <Col md={3}>
             <div className="d-flex ">
@@ -500,20 +446,20 @@ const MusicSearch = () => {
               <FaStepForward size={20} className={playlist.length > 0 ? "text-dark" : "text-muted"} />
             </Button>
 
-            {/* 👇 【修改2】非常明显的列表按钮，蓝色背景带计数器 */}
+            {/* 👇 这里的按钮就是列表按钮，蓝色圆角，带数字 */}
             <Button 
                 variant="primary" 
                 className="rounded-pill px-3" 
                 onClick={() => setShowPlaylist(true)} 
                 title="查看播放列表"
             >
-               <FaList /> <span className="fw-bold">{playlist.length}</span>
+               <FaList /> <span className="fw-bold ms-1">{playlist.length}</span>
             </Button>
           </Col>
         </Row>
       </div>
 
-      {/* 播放列表弹窗 */}
+      {/* 列表弹窗 */}
       <Modal show={showPlaylist} onHide={() => setShowPlaylist(false)} centered scrollable size="lg">
         <Modal.Header closeButton>
           <Modal.Title>播放列表 ({playlist.length})</Modal.Title>
