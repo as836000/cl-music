@@ -1,35 +1,35 @@
-import React, { useState, useEffect, useRef,useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Container, Row, Col, Form, Button, Card, Spinner, Dropdown } from 'react-bootstrap';
 import axios from 'axios';
 import ReactPlayer from 'react-player';
-import { FaPlay, FaPause, FaDownload, FaMusic ,FaChevronDown,FaChevronUp,FaGithub } from 'react-icons/fa';
+import { FaPlay, FaPause, FaDownload, FaMusic, FaChevronDown, FaChevronUp, FaGithub, FaStepForward, FaStepBackward } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 
 const API_BASE = process.env.REACT_APP_API_BASE || '/api';
 
 
-const Github = ()=>{
+const Github = () => {
   return (
     <a
-        href="https://github.com/lovebai/cl-music"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="github-corner"
-        aria-label="View source on GitHub"
-      >
-        <FaGithub
-          size={32}
-          className="text-dark"
-          style={{
-            position: 'fixed',
-            top: '20px',
-            right: '20px',
-            zIndex: 1000,
-            transition: 'transform 0.3s ease'
-          }}
-        />
-      </a>
+      href="https://github.com/lovebai/cl-music"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="github-corner"
+      aria-label="View source on GitHub"
+    >
+      <FaGithub
+        size={32}
+        className="text-dark"
+        style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 1000,
+          transition: 'transform 0.3s ease'
+        }}
+      />
+    </a>
   )
 }
 
@@ -53,10 +53,14 @@ const MusicSearch = () => {
   const [lyricExpanded, setLyricExpanded] = useState(false);
   const lyricsContainerRef = useRef(null);
 
+  // 👇 【新增】播放列表状态
+  const [playlist, setPlaylist] = useState([]);
+  const [playlistIndex, setPlaylistIndex] = useState(0);
+
 
   const sources = [
-    'netease','joox','tencent', 'tidal', 'spotify', 
-    'ytmusic', 'qobuz',  'deezer',
+    'netease', 'joox', 'tencent', 'tidal', 'spotify',
+    'ytmusic', 'qobuz', 'deezer',
     'migu', 'kugou', 'kuwo', 'ximalaya'
   ];
 
@@ -65,7 +69,7 @@ const MusicSearch = () => {
   const parseLyric = (text) => {
     const lines = text.split('\n');
     const pattern = /\[(\d+):(\d+\.\d+)\]/;
-    
+
     return lines.map(line => {
       const match = line.match(pattern);
       if (match) {
@@ -96,15 +100,15 @@ const MusicSearch = () => {
         }
       });
       // setResults(response.data || []);
-            // 获取结果后处理封面
-        const resultsWithCover = await Promise.all(
-          response.data.map(async track => ({
-            ...track,
-            picUrl: await fetchCover(track.source, track.pic_id)
-          }))
-        );
-        
-        setResults(resultsWithCover);
+      // 获取结果后处理封面
+      const resultsWithCover = await Promise.all(
+        response.data.map(async track => ({
+          ...track,
+          picUrl: await fetchCover(track.source, track.pic_id)
+        }))
+      );
+
+      setResults(resultsWithCover);
     } catch (error) {
       console.error('Search error:', error);
       toast.error('搜索失败，请稍后重试', {
@@ -115,37 +119,37 @@ const MusicSearch = () => {
     setLoading(false);
   };
 
-  
-const fetchCover = async (source, picId, size = 300) => {
-  const cacheKey = `${source}-${picId}-${size}`;
-  
-  // 检查缓存
-  if (coverCache[cacheKey]) return coverCache[cacheKey];
 
-  try {
-    const response = await axios.get(`${API_BASE}`, {
-      params: {
-        types: 'pic',
-        source: source,
-        id: picId,
-        size: size
-      }
-    });
-    
-    const url = response.data.url.replace(/\\/g, '');
-    
-    // 更新缓存
-    setCoverCache(prev => ({
-      ...prev,
-      [cacheKey]: url
-    }));
-    
-    return url;
-  } catch (error) {
-    console.error('封面获取失败:', error);
-    return 'default_cover.jpg'; 
-  }
-};
+  const fetchCover = async (source, picId, size = 300) => {
+    const cacheKey = `${source}-${picId}-${size}`;
+
+    // 检查缓存
+    if (coverCache[cacheKey]) return coverCache[cacheKey];
+
+    try {
+      const response = await axios.get(`${API_BASE}`, {
+        params: {
+          types: 'pic',
+          source: source,
+          id: picId,
+          size: size
+        }
+      });
+
+      const url = response.data.url.replace(/\\/g, '');
+
+      // 更新缓存
+      setCoverCache(prev => ({
+        ...prev,
+        [cacheKey]: url
+      }));
+
+      return url;
+    } catch (error) {
+      console.error('封面获取失败:', error);
+      return 'default_cover.jpg';
+    }
+  };
 
   const handlePlay = async (track) => {
     if (currentTrack?.id === track.id) {
@@ -163,12 +167,11 @@ const fetchCover = async (source, picId, size = 300) => {
         })
       ]);
       console.log(urlResponse.data.size);
-      
-      
-  
+
+
       const rawLyric = lyricResponse.data.lyric || '';
       const tLyric = lyricResponse.data.tlyric || '';
-      
+
       setLyricData({
         rawLyric,
         tLyric,
@@ -189,7 +192,7 @@ const fetchCover = async (source, picId, size = 300) => {
 
       const url = response.data?.url?.replace(/\\/g, '');
       if (!url) throw new Error('无效的音频链接');
-  
+
       // 确保状态更新顺序
       setCurrentTrack(track);
       setPlayerUrl(url);
@@ -208,7 +211,7 @@ const fetchCover = async (source, picId, size = 300) => {
 
   const useThrottle = (callback, delay) => {
     const lastCall = useRef(0);
-    
+
     return useCallback((...args) => {
       const now = new Date().getTime();
       if (now - lastCall.current >= delay) {
@@ -221,7 +224,7 @@ const fetchCover = async (source, picId, size = 300) => {
   const handleProgress = useThrottle((state) => {
     const currentTime = state.playedSeconds;
     const lyrics = lyricData.parsedLyric;
-    
+
     let newIndex = -1;
     for (let i = lyrics.length - 1; i >= 0; i--) {
       if (currentTime >= lyrics[i].time) {
@@ -229,7 +232,7 @@ const fetchCover = async (source, picId, size = 300) => {
         break;
       }
     }
-  
+
     if (newIndex !== currentLyricIndex) {
       setCurrentLyricIndex(newIndex);
     }
@@ -245,7 +248,7 @@ const fetchCover = async (source, picId, size = 300) => {
           br: quality
         }
       });
-      
+
       const downloadUrl = response.data.url.replace(/\\/g, '');
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -273,7 +276,7 @@ const fetchCover = async (source, picId, size = 300) => {
         .split('/')
         .pop()
         .split(/[#?]/)[0]; // 移除可能的哈希和查询参数
-      
+
       // 使用正则表达式提取后缀
       const extensionMatch = fileName.match(/\.([a-z0-9]+)$/i);
       return extensionMatch ? extensionMatch[1] : 'audio';
@@ -282,35 +285,68 @@ const fetchCover = async (source, picId, size = 300) => {
     }
   };
 
+  // 👇 👇 👇 【新增】核心播放列表逻辑
+  const addToPlaylist = (track) => {
+    setPlaylist([...playlist, track]);
+    toast.success(`已添加: ${track.name}`, {
+      icon: '✅',
+      autoClose: 2000
+    });
+  };
 
-// 添加滚动效果
-useEffect(() => {
-  if (lyricExpanded && currentLyricIndex >= 0 && lyricsContainerRef.current) {
-    const activeLines = lyricsContainerRef.current.getElementsByClassName('active');
-    if (activeLines.length > 0) {
-      activeLines[0].scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'nearest'
-      });
+  const playNext = () => {
+    if (playlist.length === 0) return;
+
+    let nextIndex = playlistIndex + 1;
+    if (nextIndex >= playlist.length) {
+      nextIndex = 0;
     }
-  }
-}, [currentLyricIndex, lyricExpanded]);
+
+    setPlaylistIndex(nextIndex);
+    handlePlay(playlist[nextIndex]);
+  };
+
+  const playPrev = () => {
+    if (playlist.length === 0) return;
+
+    let prevIndex = playlistIndex - 1;
+    if (prevIndex < 0) {
+      prevIndex = playlist.length - 1;
+    }
+
+    setPlaylistIndex(prevIndex);
+    handlePlay(playlist[prevIndex]);
+  };
+  // 👆 👆 👇 新增逻辑结束
+
+  // 添加滚动效果
+  useEffect(() => {
+    if (lyricExpanded && currentLyricIndex >= 0 && lyricsContainerRef.current) {
+      const activeLines = lyricsContainerRef.current.getElementsByClassName('active');
+      if (activeLines.length > 0) {
+        activeLines[0].scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      }
+    }
+  }, [currentLyricIndex, lyricExpanded]);
 
 
   return (
-     <Container className="my-4"
-     style={{ 
-      paddingBottom: lyricExpanded ? '320px' : '120px',
-      transition: 'padding 0.3s ease'
-    }}
-     >
-      <Github/>
+    <Container className="my-4"
+      style={{
+        paddingBottom: lyricExpanded ? '320px' : '120px',
+        transition: 'padding 0.3s ease'
+      }}
+    >
+      <Github />
       <h1 className="text-center mb-4">全平台音乐搜索</h1>
-      
+
       <Form onSubmit={handleSearch} className="mb-4">
         <Row className="g-2">
-                   
+
           <Col md={5}>
             <Form.Control
               type="search"
@@ -321,7 +357,7 @@ useEffect(() => {
           </Col>
 
           <Col md={3}>
-            <Form.Select 
+            <Form.Select
               value={source}
               onChange={(e) => setSource(e.target.value)}
             >
@@ -330,7 +366,7 @@ useEffect(() => {
               ))}
             </Form.Select>
           </Col>
-          
+
           <Col md={2}>
             <Dropdown>
               <Dropdown.Toggle variant="outline-secondary">
@@ -345,7 +381,7 @@ useEffect(() => {
               </Dropdown.Menu>
             </Dropdown>
           </Col>
-          
+
           <Col md={2}>
             <Button variant="primary" type="submit" className="w-100">
               搜索
@@ -366,15 +402,15 @@ useEffect(() => {
             <Card>
               <Card.Body>
                 <div className="d-flex align-items-center">
-                <img
+                  <img
                     src={track.picUrl || 'default_cover.jpg'}
                     alt="专辑封面"
                     className="me-3 rounded"
-                    style={{ 
-                      width: '60px', 
+                    style={{
+                      width: '60px',
                       height: '60px',
                       objectFit: 'cover',
-                      backgroundColor: '#f5f5f5' 
+                      backgroundColor: '#f5f5f5'
                     }}
                     onError={(e) => {
                       e.target.src = 'default_cover.png';
@@ -385,25 +421,38 @@ useEffect(() => {
                     <small className="text-muted">{track.artist} - {track.album}</small>
                   </div>
                 </div>
-                
+
                 <div className="mt-2 d-flex justify-content-end">
-                <Button 
-                  variant="outline-primary" 
-                  size="sm"
-                  style={{ marginRight: '0.1rem' }}
-                  onClick={() => handlePlay(track)}
-                  disabled={loading || (currentTrack?.id === track.id && !playerUrl)}
-                >
-                  {loading && currentTrack?.id === track.id ? (
-                    <Spinner animation="border" size="sm" />
-                  ) : currentTrack?.id === track.id ? (
-                    isPlaying ? <FaPause /> : <FaPlay />
-                  ) : (
-                    <FaPlay />
-                  )}
-                </Button>
-                  <Button 
-                    variant="outline-success" 
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    style={{ marginRight: '5px' }}
+                    onClick={() => handlePlay(track)}
+                    disabled={loading || (currentTrack?.id === track.id && !playerUrl)}
+                  >
+                    {loading && currentTrack?.id === track.id ? (
+                      <Spinner animation="border" size="sm" />
+                    ) : currentTrack?.id === track.id ? (
+                      isPlaying ? <FaPause /> : <FaPlay />
+                    ) : (
+                      <FaPlay />
+                    )}
+                  </Button>
+
+                  {/* 👇 【新增】添加到列表按钮 */}
+                  <Button
+                    variant="outline-secondary"
+                    size="sm"
+                    style={{ marginRight: '5px' }}
+                    onClick={() => addToPlaylist(track)}
+                    title="添加到播放列表"
+                  >
+                    +
+                  </Button>
+                  {/* 👆 新增结束 */}
+
+                  <Button
+                    variant="outline-success"
                     size="sm"
                     onClick={() => handleDownload(track)}
                   >
@@ -417,130 +466,151 @@ useEffect(() => {
       </Row>
 
       <div className="fixed-bottom bg-light p-3 border-top"
-      style={{
-        height: lyricExpanded ? '300px' : 'auto',
-        boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
-        zIndex: 1000
-      }}
+        style={{
+          height: lyricExpanded ? '300px' : 'auto',
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+          zIndex: 1000
+        }}
       >
         <Row className="align-items-center">
           <Col md={3}>
-          <div className="d-flex ">
-            {currentTrack && (
-              <div className="d-flex align-items-center">
-                <img 
-                  src={coverCache[`${currentTrack.source}-${currentTrack.pic_id}-300`] || 'default_cover.png'}
-                  alt="当前播放"
-                  style={{ width: '50px', height: '50px' }}
-                  className="me-2 rounded"
-                />
-                <div>
-                  <h6 className="mb-0">{currentTrack.name}</h6>
-                  <small className="text-muted">{currentTrack.artist}</small>
-                </div>
-              </div>
-            )}
-            <Button 
-              variant="link"
-              onClick={() => setLyricExpanded(!lyricExpanded)}
-              className="ms-2"
-              title={lyricExpanded ? '收起歌词' : '展开歌词'}
-            >{lyricExpanded ? <FaChevronDown /> : <FaChevronUp />}
-            </Button>
-          </div>
-          </Col>
-          
-      <Col md={6}>
-      <div 
-        className={`lyric-container ${lyricExpanded ? 'expanded' : 'collapsed'}`}
-        style={{ 
-          maxHeight: lyricExpanded ? '400px' : '60px',
-          transition: 'max-height 0.3s ease' 
-        }}
-      >
-        <div className="lyric-wrapper">
-          
-          {lyricData.parsedLyric[currentLyricIndex] && (
-            <div className="current-lyric">
-              {lyricData.parsedLyric[currentLyricIndex].text}
-              {lyricData.tLyric && (
-                <div className="translated-lyric">
-                  {parseLyric(lyricData.tLyric)[currentLyricIndex]?.text}
+            <div className="d-flex ">
+              {currentTrack && (
+                <div className="d-flex align-items-center">
+                  <img
+                    src={coverCache[`${currentTrack.source}-${currentTrack.pic_id}-300`] || 'default_cover.png'}
+                    alt="当前播放"
+                    style={{ width: '50px', height: '50px' }}
+                    className="me-2 rounded"
+                  />
+                  <div>
+                    <h6 className="mb-0">{currentTrack.name}</h6>
+                    <small className="text-muted">{currentTrack.artist}</small>
+                  </div>
                 </div>
               )}
-              
+              <Button
+                variant="link"
+                onClick={() => setLyricExpanded(!lyricExpanded)}
+                className="ms-2"
+                title={lyricExpanded ? '收起歌词' : '展开歌词'}
+              >{lyricExpanded ? <FaChevronDown /> : <FaChevronUp />}
+              </Button>
             </div>
-          )}
-          
-          {lyricExpanded && (
-            <div 
-            className="full-lyrics" 
-            ref={lyricsContainerRef}
-            onScroll={(e) => {
-              // 记录用户滚动行为
-              sessionStorage.setItem('userScrolled', true);
-            }}
-            >
-            {lyricData.parsedLyric.map((line, index) => (
-              <div
-                key={index}
-                className={`lyric-line ${index === currentLyricIndex ? 'active' : ''}`}
-                data-time={line.time}
-              >
-                  <div>{line.text}</div>
-                  {lyricData.tLyric && (
-                    <div className="translated-lyric">
-                      {parseLyric(lyricData.tLyric)[index]?.text}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {lyricData.parsedLyric.length === 0 && (
-                <div className="text-center text-muted py-3">暂无歌词</div>
-              )}
-                </div>
-         )}
-         {lyricData.parsedLyric.length === 0 && (
-                <div className="current-lyric">暂无歌词</div>
-         )}
+          </Col>
 
-          
-        </div>
-      </div>
-      <ReactPlayer
-            ref={playerRef}
-            onProgress={handleProgress}
-            url={playerUrl}
-            playing={isPlaying}
-            onReady={() => console.log('播放器就绪')}
-            onError={(e) => {
-              console.error('播放错误:', e);
-              setIsPlaying(false);
-            }}
-            onEnded={() => {
-              setIsPlaying(false);
-              // 保留当前曲目信息但停止播放
-            }}
-            config={{ file: { forceAudio: true } }}
-            height={0}
-            style={{ display: playerUrl ? 'block' : 'none' }} // 隐藏未初始化的播放器
-          />
-       </Col>
-          
-          <Col md={3} className="text-end">
-          <Button
-            variant="link"
-            onClick={() => setIsPlaying(!isPlaying)}
-            disabled={!currentTrack || !playerUrl}
-          >
-            {!currentTrack ? (
-              <FaMusic size={24} className="text-muted" />
-            ) : isPlaying ? (
-              <FaPause size={24} />
-            ) : (
-              <FaPlay size={24} />
-            )}
-          </Button>
+          <Col md={6}>
+            <div
+              className={`lyric-container ${lyricExpanded ? 'expanded' : 'collapsed'}`}
+              style={{
+                maxHeight: lyricExpanded ? '400px' : '60px',
+                transition: 'max-height 0.3s ease'
+              }}
+            >
+              <div className="lyric-wrapper">
+
+                {lyricData.parsedLyric[currentLyricIndex] && (
+                  <div className="current-lyric">
+                    {lyricData.parsedLyric[currentLyricIndex].text}
+                    {lyricData.tLyric && (
+                      <div className="translated-lyric">
+                        {parseLyric(lyricData.tLyric)[currentLyricIndex]?.text}
+                      </div>
+                    )}
+
+                  </div>
+                )}
+
+                {lyricExpanded && (
+                  <div
+                    className="full-lyrics"
+                    ref={lyricsContainerRef}
+                    onScroll={(e) => {
+                      // 记录用户滚动行为
+                      sessionStorage.setItem('userScrolled', true);
+                    }}
+                  >
+                    {lyricData.parsedLyric.map((line, index) => (
+                      <div
+                        key={index}
+                        className={`lyric-line ${index === currentLyricIndex ? 'active' : ''}`}
+                        data-time={line.time}
+                      >
+                        <div>{line.text}</div>
+                        {lyricData.tLyric && (
+                          <div className="translated-lyric">
+                            {parseLyric(lyricData.tLyric)[index]?.text}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {lyricData.parsedLyric.length === 0 && (
+                      <div className="text-center text-muted py-3">暂无歌词</div>
+                    )}
+                  </div>
+                )}
+                {lyricData.parsedLyric.length === 0 && (
+                  <div className="current-lyric">暂无歌词</div>
+                )}
+
+
+              </div>
+            </div>
+            <ReactPlayer
+              ref={playerRef}
+              onProgress={handleProgress}
+              url={playerUrl}
+              playing={isPlaying}
+              onReady={() => console.log('播放器就绪')}
+              onError={(e) => {
+                console.error('播放错误:', e);
+                setIsPlaying(false);
+              }}
+              onEnded={() => {
+                // setIsPlaying(false); // ❌ 注释掉原来的停止逻辑
+                playNext(); // 👇 【修改】改为自动播放下一首
+              }}
+              config={{ file: { forceAudio: true } }}
+              height={0}
+              style={{ display: playerUrl ? 'block' : 'none' }} // 隐藏未初始化的播放器
+            />
+          </Col>
+
+          <Col md={3} className="text-end d-flex align-items-center justify-content-end gap-2">
+            {/* 👇 【新增】 上一首 */}
+            <Button
+                variant="link"
+                onClick={playPrev}
+                disabled={playlist.length === 0}
+                title="上一首"
+            >
+                <FaStepBackward size={20} className={playlist.length > 0 ? "text-dark" : "text-muted"} />
+            </Button>
+            
+            {/* 原有播放/暂停 */}
+            <Button
+              variant="link"
+              onClick={() => setIsPlaying(!isPlaying)}
+              disabled={!currentTrack || !playerUrl}
+            >
+              {!currentTrack ? (
+                <FaMusic size={28} className="text-muted" />
+              ) : isPlaying ? (
+                <FaPause size={28} />
+              ) : (
+                <FaPlay size={28} />
+              )}
+            </Button>
+
+            {/* 👇 【新增】 下一首 */}
+            <Button
+                variant="link"
+                onClick={playNext}
+                disabled={playlist.length === 0}
+                title="下一首"
+            >
+                <FaStepForward size={20} className={playlist.length > 0 ? "text-dark" : "text-muted"} />
+            </Button>
           </Col>
         </Row>
       </div>
