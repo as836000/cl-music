@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Container, Row, Col, Form, Button, Card, Spinner, Dropdown, Modal, ListGroup, ListGroupItem } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, Card, Spinner, Dropdown, Modal, ListGroup } from 'react-bootstrap';
 import axios from 'axios';
 import ReactPlayer from 'react-player';
 import { FaPlay, FaPause, FaDownload, FaMusic, FaChevronDown, FaChevronUp, FaGithub, FaStepForward, FaStepBackward, FaList, FaTimes } from 'react-icons/fa';
@@ -53,10 +53,23 @@ const MusicSearch = () => {
   const [lyricExpanded, setLyricExpanded] = useState(false);
   const lyricsContainerRef = useRef(null);
 
-  // 👇 【修改】播放列表状态
-  const [playlist, setPlaylist] = useState([]);
+  // 👇 【修改1】使用 localStorage 初始化播放列表，确保刷新不丢失
+  const [playlist, setPlaylist] = useState(() => {
+    try {
+      const saved = localStorage.getItem('my_music_playlist');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  
   const [playlistIndex, setPlaylistIndex] = useState(0);
-  const [showPlaylist, setShowPlaylist] = useState(false); // 新增：控制列表弹窗显示
+  const [showPlaylist, setShowPlaylist] = useState(false); // 控制列表弹窗显示
+
+  // 👇 【修改1】添加新的 useEffect，每当列表变化时自动保存到浏览器
+  useEffect(() => {
+    localStorage.setItem('my_music_playlist', JSON.stringify(playlist));
+  }, [playlist]);
 
 
   const sources = [
@@ -145,7 +158,6 @@ const MusicSearch = () => {
   };
 
   const handlePlay = async (track) => {
-    // 如果点击的是当前正在播放的歌
     if (currentTrack?.id === track.id) {
       setIsPlaying(!isPlaying);
       return;
@@ -262,10 +274,16 @@ const MusicSearch = () => {
     }
   };
 
-  // 👇 👇 👇 【更新】播放列表逻辑
+  // 播放列表操作
   const addToPlaylist = (track) => {
+    // 防止重复添加
+    const exists = playlist.some(t => t.id === track.id && t.source === track.source);
+    if(exists) {
+      toast.info('这首歌已经在列表里了');
+      return;
+    }
     setPlaylist([...playlist, track]);
-    toast.success(`已添加: ${track.name}`, { autoClose: 2000 });
+    toast.success(`已添加: ${track.name}`, { autoClose: 1500 });
   };
 
   const playNext = () => {
@@ -289,25 +307,22 @@ const MusicSearch = () => {
   const playFromPlaylist = (index) => {
     setPlaylistIndex(index);
     handlePlay(playlist[index]);
-    setShowPlaylist(false); // 点击后关闭弹窗
+    setShowPlaylist(false); // 选歌后关闭窗口
   };
 
   const removeFromPlaylist = (e, index) => {
-    e.stopPropagation(); // 防止触发播放
+    e.stopPropagation();
     const newPlaylist = playlist.filter((_, i) => i !== index);
     setPlaylist(newPlaylist);
 
     if (index === playlistIndex) {
-      // 如果删除的是当前正在播放的，停止播放
       setIsPlaying(false);
       setCurrentTrack(null);
       setPlayerUrl('');
     } else if (index < playlistIndex) {
-      // 如果删除的是当前播放歌曲前面的，当前索引需要减1
       setPlaylistIndex(playlistIndex - 1);
     }
   };
-  // 👆 👆 👇 逻辑结束
 
   useEffect(() => {
     if (lyricExpanded && currentLyricIndex >= 0 && lyricsContainerRef.current) {
@@ -405,8 +420,8 @@ const MusicSearch = () => {
       </Row>
 
       {/* 底部播放器 */}
-      <div className="fixed-bottom bg-light p-3 border-top"
-        style={{ height: lyricExpanded ? '300px' : 'auto', boxShadow: '0 -2px 10px rgba(0,0,0,0.1)', zIndex: 1000 }}
+      <div className="fixed-bottom bg-light p-3 border-top shadow"
+        style={{ height: lyricExpanded ? '300px' : 'auto', zIndex: 1000 }}
       >
         <Row className="align-items-center">
           <Col md={3}>
@@ -460,7 +475,7 @@ const MusicSearch = () => {
               ref={playerRef} onProgress={handleProgress} url={playerUrl} playing={isPlaying}
               onReady={() => console.log('ready')}
               onError={() => { setIsPlaying(false); }}
-              onEnded={playNext} // 自动播放下一首
+              onEnded={playNext}
               config={{ file: { forceAudio: true } }} height={0}
               style={{ display: playerUrl ? 'block' : 'none' }}
             />
@@ -485,18 +500,23 @@ const MusicSearch = () => {
               <FaStepForward size={20} className={playlist.length > 0 ? "text-dark" : "text-muted"} />
             </Button>
 
-            {/* 👇 【新增】播放列表按钮 */}
-            <Button variant="primary" size="sm" onClick={() => setShowPlaylist(true)} title={`播放列表 (${playlist.length})`}>
-               <FaList /> {playlist.length}
+            {/* 👇 【修改2】非常明显的列表按钮，蓝色背景带计数器 */}
+            <Button 
+                variant="primary" 
+                className="rounded-pill px-3" 
+                onClick={() => setShowPlaylist(true)} 
+                title="查看播放列表"
+            >
+               <FaList /> <span className="fw-bold">{playlist.length}</span>
             </Button>
           </Col>
         </Row>
       </div>
 
-      {/* 👇 【新增】播放列表弹窗 */}
-      <Modal show={showPlaylist} onHide={() => setShowPlaylist(false)} centered scrollable>
+      {/* 播放列表弹窗 */}
+      <Modal show={showPlaylist} onHide={() => setShowPlaylist(false)} centered scrollable size="lg">
         <Modal.Header closeButton>
-          <Modal.Title>播放列表 <span className="badge bg-secondary">{playlist.length}</span></Modal.Title>
+          <Modal.Title>播放列表 ({playlist.length})</Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ padding: '0' }}>
           {playlist.length === 0 ? (
@@ -504,9 +524,9 @@ const MusicSearch = () => {
           ) : (
             <ListGroup variant="flush">
               {playlist.map((track, index) => (
-                <ListGroupItem
+                <ListGroup.Item
                   key={index}
-                  active={currentTrack?.id === track.id} // 高亮当前播放
+                  active={currentTrack?.id === track.id && currentTrack?.source === track.source}
                   action
                   onClick={() => playFromPlaylist(index)}
                   style={{
@@ -514,25 +534,25 @@ const MusicSearch = () => {
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     cursor: 'pointer',
-                    padding: '10px 20px'
+                    padding: '12px 20px',
+                    background: (currentTrack?.id === track.id && currentTrack?.source === track.source) ? '#e9ecef' : 'white'
                   }}
                 >
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{ fontWeight: currentTrack?.id === track.id ? 'bold' : 'normal' }}>
+                  <div style={{ flex: 1, overflow: 'hidden', marginRight: '10px' }}>
+                    <div style={{ fontWeight: (currentTrack?.id === track.id) ? 'bold' : 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {index + 1}. {track.name}
                     </div>
                     <small className="text-muted">{track.artist}</small>
                   </div>
                   <Button
                     variant="link"
-                    className="text-danger"
-                    style={{ padding: '0 10px' }}
+                    className="text-danger p-0"
                     onClick={(e) => removeFromPlaylist(e, index)}
                     title="移除"
                   >
                     <FaTimes />
                   </Button>
-                </ListGroupItem>
+                </ListGroup.Item>
               ))}
             </ListGroup>
           )}
