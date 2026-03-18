@@ -9,7 +9,7 @@ import { toast } from 'react-toastify';
 const APP_VERSION = "V5 - KV云同步版";
 
 // 这里填你上面部署的 Worker 地址
-const API_BASE = process.env.REACT_APP_API_BASE || '/api'; 
+const API_BASE = https://yy5.linjia.nyc.mn || '/api'; 
 
 const Github = () => (
   <a href="https://github.com/lovebai/cl-music" target="_blank" rel="noopener noreferrer" className="github-corner" aria-label="View source on GitHub">
